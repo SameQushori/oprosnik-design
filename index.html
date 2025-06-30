@@ -8,6 +8,22 @@
   </head>
   <body>
     <div id="root"></div>
+    <script type="text/javascript">
+      (function() {
+        var redirect = sessionStorage.redirect;
+        delete sessionStorage.redirect;
+        if (redirect && redirect != window.location.pathname) {
+          // Если мы были перенаправлены с 404.html,
+          // то используем history.replaceState, чтобы изменить URL
+          // обратно на тот, который хотел пользователь.
+          // HashRouter сам подхватит изменение.
+          var newPath = redirect.replace('/oprosnik-design', '');
+          if (newPath.startsWith('/')) {
+            window.history.replaceState(null, null, '#!' + newPath);
+          }
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
