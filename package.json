@@ -1,5 +1,6 @@
 {
   "name": "oprosnik-design",
+  "homepage": "https://<YOUR_USERNAME>.github.io/oprosnik-design/",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -10,6 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "file-saver": "^2.0.5",
     "firebase": "^11.9.1",
     "qrcode.react": "^4.2.0",
     "react": "^19.1.0",

@@ -284,7 +284,7 @@ class FirebaseSurveyManager {
         participantName: participantName,
         answers: answers,
         submittedAt: new Date().toISOString(),
-        startedAt: startedAt || new Date().toISOString(), // Время начала прохождения
+        startedAt: startedAt || null,
         score: this.calculateScore(survey, answers)
       };
 
@@ -381,16 +381,12 @@ class FirebaseSurveyManager {
 
   calculateScore(survey, answers) {
     let totalScore = 0;
-    let maxScore = 0;
 
     survey.questions.forEach(question => {
       if (question.hasCorrectAnswer && question.correctAnswer) {
-        maxScore += question.points || 1;
-        
         const userAnswer = answers[question.id];
         if (userAnswer) {
           let isCorrect = false;
-          
           if (question.type === 'single_choice') {
             isCorrect = userAnswer === question.correctAnswer;
           } else if (question.type === 'multiple_choice') {
@@ -399,15 +395,13 @@ class FirebaseSurveyManager {
             isCorrect = userAnswers.length === correctAnswers.length && 
                        userAnswers.every(ans => correctAnswers.includes(ans));
           }
-          
           if (isCorrect) {
             totalScore += question.points || 1;
           }
         }
       }
     });
-
-    return maxScore > 0 ? Math.round((totalScore / maxScore) * 100) / 100 : 0;
+    return totalScore;
   }
 
   validateSurveyData(surveyData) {
@@ -510,9 +504,18 @@ class FirebaseSurveyManager {
       
       if (!survey) return null;
 
+      // Считаем максимальный балл
+      let maxScore = 0;
+      survey.questions.forEach(q => {
+        if (q.hasCorrectAnswer && q.correctAnswer) {
+          maxScore += q.points || 1;
+        }
+      });
+
       const stats = {
         totalParticipants: responses.length,
         averageScore: 0,
+        maxScore,
         questionStats: {},
         recentResponses: responses.slice(0, 5)
       };

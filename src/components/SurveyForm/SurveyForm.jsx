@@ -260,7 +260,7 @@ const SurveyForm = ({ survey, participantName, onSubmit, onClose }) => {
                 {survey.description && <p className="survey-description"><TruncatedText text={survey.description} maxLength={100} /></p>}
               </div>
               <button className="btn btn-outline" onClick={handleGoHome}>
-                ← Вернуться на главную
+                Вернуться на главную
               </button>
             </div>
             

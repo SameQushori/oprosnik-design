@@ -96,7 +96,7 @@ class SurveyManager {
   }
 
   // Отправка ответа на опрос
-  submitResponse(surveyId, participantName, answers) {
+  submitResponse(surveyId, participantName, answers, startedAt = null) {
     const survey = this.getSurveyById(surveyId);
     if (!survey) {
       throw new Error('Опрос не найден');
@@ -124,7 +124,8 @@ class SurveyManager {
       participantName: participantName,
       answers: answers,
       submittedAt: new Date().toISOString(),
-      score: this.calculateScore(survey, answers)
+      score: this.calculateScore(survey, answers),
+      startedAt: startedAt || null
     };
 
     this.responses.push(response);
@@ -153,9 +154,18 @@ class SurveyManager {
     
     if (!survey) return null;
 
+    // Считаем максимальный балл
+    let maxScore = 0;
+    survey.questions.forEach(q => {
+      if (q.hasCorrectAnswer && q.correctAnswer) {
+        maxScore += q.points || 1;
+      }
+    });
+
     const stats = {
       totalParticipants: responses.length,
       averageScore: 0,
+      maxScore,
       questionStats: {},
       recentResponses: responses.slice(-5).reverse()
     };
@@ -231,16 +241,12 @@ class SurveyManager {
   // Подсчет баллов за ответы
   calculateScore(survey, answers) {
     let totalScore = 0;
-    let maxScore = 0;
 
     survey.questions.forEach(question => {
       if (question.hasCorrectAnswer && question.correctAnswer) {
-        maxScore += question.points || 1;
-        
         const userAnswer = answers[question.id];
         if (userAnswer) {
           let isCorrect = false;
-          
           if (question.type === 'single_choice') {
             isCorrect = userAnswer === question.correctAnswer;
           } else if (question.type === 'multiple_choice') {
@@ -251,15 +257,13 @@ class SurveyManager {
           } else if (question.type === 'text') {
             isCorrect = userAnswer.toLowerCase().trim() === question.correctAnswer.toLowerCase().trim();
           }
-
           if (isCorrect) {
             totalScore += question.points || 1;
           }
         }
       }
     });
-
-    return maxScore > 0 ? totalScore : null;
+    return totalScore;
   }
 
   // Валидация данных опроса

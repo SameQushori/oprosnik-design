@@ -3,7 +3,7 @@ import { truncateSurveyDescription } from '../../utils/textUtils';
 import TruncatedText from '../TruncatedText/TruncatedText';
 import './Dashboard.css';
 
-const Dashboard = ({ surveys, onDeleteSurvey, onEditSurvey, onCreateSurvey, onShowQRCode, onShowResults }) => {
+const Dashboard = ({ surveys, onDeleteSurvey, onEditSurvey, onCreateSurvey, onShowQRCode, onShowResults, onExportCSV }) => {
   const [editingSurvey, setEditingSurvey] = useState(null);
   const [editData, setEditData] = useState({});
 
@@ -136,9 +136,9 @@ const Dashboard = ({ surveys, onDeleteSurvey, onEditSurvey, onCreateSurvey, onSh
                     <div className="survey-actions">
                       <button 
                         className="btn btn-outline" 
-                        onClick={() => onShowQRCode(survey.id)}
+                        onClick={() => onExportCSV(survey)}
                       >
-                        📱 QR-код
+                        🗎 Экспорт в CSV
                       </button>
                       <button 
                         className="btn btn-outline" 

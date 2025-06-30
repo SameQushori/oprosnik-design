@@ -9,6 +9,7 @@ import SurveyResults from '../../components/SurveyResults/SurveyResults';
 import AdminRegistration from '../../components/AdminRegistration/AdminRegistration';
 import QRCodeModal from '../../components/QRCodeModal/QRCodeModal';
 import './DashboardPage.css';
+import { saveAs } from 'file-saver';
 
 const DashboardPage = () => {
   const navigate = useNavigate();
@@ -279,6 +280,43 @@ const DashboardPage = () => {
       }
       setIsLoading(false);
     }
+  };
+
+  // --- Экспорт в CSV для Dashboard ---
+  const handleExportCSV = async (survey) => {
+    const responses = await firebaseSurveyManager.getSurveyResponses(survey.id);
+    if (!responses.length) return;
+    const header = ['Имя участника', ...survey.questions.map((q, i) => `${i + 1}. ${q.text}`), 'Баллы', 'Дата'];
+    const getOptionText = (questionId, optionId) => {
+      const question = survey.questions.find(q => q.id === questionId);
+      if (!question || !question.options) return '';
+      const option = question.options.find(opt => opt.id === optionId);
+      return option ? option.text : '';
+    };
+    const rows = responses.map(response => {
+      const answerCells = survey.questions.map(question => {
+        const answer = response.answers[question.id];
+        if (question.type === 'single_choice') {
+          return getOptionText(question.id, answer);
+        } else if (question.type === 'multiple_choice') {
+          return Array.isArray(answer) ? answer.map(id => getOptionText(question.id, id)).join(', ') : '';
+        } else if (question.type === 'text') {
+          return answer || '';
+        } else if (question.type === 'rating') {
+          return answer ? `${answer} из ${question.maxRating || 5}` : '';
+        }
+        return '';
+      });
+      return [
+        response.participantName,
+        ...answerCells,
+        response.score,
+        new Date(response.submittedAt).toLocaleString('ru-RU')
+      ];
+    });
+    const csv = [header, ...rows].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    saveAs(blob, `survey_results_${survey.id}.csv`);
   };
 
   if (isLoading) {
@@ -575,6 +613,7 @@ const DashboardPage = () => {
         <SurveyResults
           survey={selectedSurvey}
           onClose={handleCloseResults}
+          onExportCSV={handleExportCSV}
         />
       )}
 

@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import firebaseSurveyManager from '../../utils/firebaseSurveyManager';
 import { truncateSurveyTitle } from '../../utils/textUtils';
 import TruncatedText from '../TruncatedText/TruncatedText';
-import QRCodeModal from '../QRCodeModal/QRCodeModal';
 import './SurveyResults.css';
+import { saveAs } from 'file-saver';
 
 const SurveyResults = ({ survey, onClose }) => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -210,6 +210,9 @@ const SurveyResults = ({ survey, onClose }) => {
     return analytics;
   };
 
+  // Получаем максимальный балл из stats
+  const maxScore = stats?.maxScore || (survey.questions?.reduce((sum, q) => q.hasCorrectAnswer && q.correctAnswer ? sum + (q.points || 1) : sum, 0));
+
   const renderOverview = () => (
     <div className="results-overview">
       <div className="stats-grid">
@@ -226,7 +229,7 @@ const SurveyResults = ({ survey, onClose }) => {
             <div className="stat-icon">📊</div>
             <div className="stat-content">
               <h3>Средний балл</h3>
-              <p className="stat-value">{stats?.averageScore}</p>
+              <p className="stat-value">{stats?.averageScore} / {maxScore}</p>
             </div>
           </div>
         )}
@@ -588,55 +591,116 @@ const SurveyResults = ({ survey, onClose }) => {
     );
   };
 
+  // --- Экспорт в CSV ---
+  const handleExportCSV = () => {
+    if (!responses.length) return;
+    const header = ['Имя участника', ...survey.questions.map((q, i) => `${i + 1}. ${q.text}`), 'Баллы', 'Время (сек)', 'Дата'];
+    const rows = responses.map(response => {
+      const answerCells = survey.questions.map(question => {
+        const answer = response.answers[question.id];
+        if (question.type === 'single_choice') {
+          return getOptionText(question.id, answer);
+        } else if (question.type === 'multiple_choice') {
+          return Array.isArray(answer) ? answer.map(id => getOptionText(question.id, id)).join(', ') : '';
+        } else if (question.type === 'text') {
+          return answer || '';
+        } else if (question.type === 'rating') {
+          return answer ? `${answer} из ${question.maxRating || 5}` : '';
+        }
+        return '';
+      });
+      // Время прохождения
+      let timeSec = '';
+      if (response.startedAt && response.submittedAt) {
+        const start = new Date(response.startedAt);
+        const end = new Date(response.submittedAt);
+        timeSec = Math.round((end - start) / 1000);
+      }
+      return [
+        response.participantName,
+        ...answerCells,
+        `${response.score} / ${maxScore}`,
+        timeSec,
+        formatDate(response.submittedAt)
+      ];
+    });
+    const csv = [header, ...rows].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    saveAs(blob, `survey_results_${survey.id}.csv`);
+  };
+
+  // --- renderResponses с пометками правильности и временем ---
   const renderResponses = () => (
     <div className="all-responses">
       <div className="responses-header">
         <h3>Все ответы ({responses.length})</h3>
       </div>
-      
       <div className="responses-list">
-        {responses.map(response => (
-          <div key={response.id} className="response-detail">
-            <div className="response-detail-header">
-              <span className="participant-name">
-                <TruncatedText text={response.participantName} maxLength={25} />
-              </span>
-              <span className="response-date">{formatDate(response.submittedAt)}</span>
-              {response.score !== null && (
-                <span className="response-score">{response.score} баллов</span>
-              )}
-            </div>
-            
-            <div className="response-answers">
-              {survey.questions.map((question, index) => {
-                const answer = response.answers[question.id];
-                if (!answer) return null;
-                
-                return (
-                  <div key={question.id} className="answer-item">
-                    <div className="answer-question">
-                      <strong>{index + 1}. {question.text}</strong>
+        {responses.map(response => {
+          let timeSec = '';
+          if (response.startedAt && response.submittedAt) {
+            const start = new Date(response.startedAt);
+            const end = new Date(response.submittedAt);
+            timeSec = Math.round((end - start) / 1000);
+          }
+          return (
+            <div key={response.id} className="response-detail">
+              <div className="response-detail-header">
+                <span className="participant-name">
+                  <TruncatedText text={response.participantName} maxLength={25} />
+                </span>
+                <span className="response-date">{formatDate(response.submittedAt)}</span>
+                {response.score !== null && (
+                  <span className="response-score">{response.score} / {maxScore} баллов</span>
+                )}
+                {timeSec !== '' && (
+                  <span className="response-score" style={{color:'#007bff'}}>⏱️ {timeSec} сек</span>
+                )}
+              </div>
+              <div className="response-answers">
+                {survey.questions.map((question, index) => {
+                  const answer = response.answers[question.id];
+                  if (!answer) return null;
+                  let isCorrect = null;
+                  if (question.hasCorrectAnswer && question.correctAnswer) {
+                    if (question.type === 'single_choice') {
+                      isCorrect = answer === question.correctAnswer;
+                    } else if (question.type === 'multiple_choice') {
+                      const userAnswers = Array.isArray(answer) ? answer : [answer];
+                      const correctAnswers = Array.isArray(question.correctAnswer) ? question.correctAnswer : [question.correctAnswer];
+                      isCorrect = userAnswers.length === correctAnswers.length && userAnswers.every(a => correctAnswers.includes(a));
+                    } else if (question.type === 'text') {
+                      isCorrect = answer.toLowerCase().trim() === question.correctAnswer.toLowerCase().trim();
+                    }
+                  }
+                  return (
+                    <div key={question.id} className={`answer-item${isCorrect === true ? ' correct' : isCorrect === false ? ' incorrect' : ''}`}>
+                      <div className="answer-question">
+                        <strong>{index + 1}. {question.text}</strong>
+                        {isCorrect === true && <span style={{color: '#28a745', marginLeft: 8}}>✔</span>}
+                        {isCorrect === false && <span style={{color: '#dc3545', marginLeft: 8}}>✘</span>}
+                      </div>
+                      <div className="answer-content">
+                        {question.type === 'single_choice' && (
+                          <span>{getOptionText(question.id, answer)}</span>
+                        )}
+                        {question.type === 'multiple_choice' && (
+                          <span>{Array.isArray(answer) ? answer.map(id => getOptionText(question.id, id)).join(', ') : answer}</span>
+                        )}
+                        {question.type === 'text' && (
+                          <span>{answer}</span>
+                        )}
+                        {question.type === 'rating' && (
+                          <span>{'⭐'.repeat(answer)} ({answer} из {question.maxRating || 5})</span>
+                        )}
+                      </div>
                     </div>
-                    <div className="answer-content">
-                      {question.type === 'single_choice' && (
-                        <span>{getOptionText(question.id, answer)}</span>
-                      )}
-                      {question.type === 'multiple_choice' && (
-                        <span>{Array.isArray(answer) ? answer.map(id => getOptionText(question.id, id)).join(', ') : answer}</span>
-                      )}
-                      {question.type === 'text' && (
-                        <span>{answer}</span>
-                      )}
-                      {question.type === 'rating' && (
-                        <span>{'⭐'.repeat(answer)} ({answer} из {question.maxRating || 5})</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -658,10 +722,10 @@ const SurveyResults = ({ survey, onClose }) => {
             </div>
             <button 
               className="btn btn-outline"
-              onClick={handleShowQRCode}
-              title="Показать QR-код"
+              onClick={handleExportCSV}
+              title="Экспорт в CSV"
             >
-              📱 QR-код
+              🗎 Экспорт в CSV
             </button>
           </div>
         </div>
@@ -699,15 +763,6 @@ const SurveyResults = ({ survey, onClose }) => {
           {activeTab === 'analytics' && renderAdvancedAnalytics()}
           {activeTab === 'responses' && renderResponses()}
         </div>
-
-        {qrModalOpen && (
-          <QRCodeModal
-            isOpen={qrModalOpen}
-            onClose={handleCloseQRCode}
-            surveyCode={survey.code}
-            surveyTitle={survey.title}
-          />
-        )}
       </div>
     </div>
   );

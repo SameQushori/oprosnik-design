@@ -160,7 +160,7 @@ const ParticipantPage = () => {
                 className="btn btn-outline"
                 onClick={handleGoHome}
               >
-                ← Вернуться на главную
+                Вернуться на главную
               </button>
               <button 
                 className="btn btn-primary"
@@ -180,7 +180,7 @@ const ParticipantPage = () => {
       <div className="participant-container">
         <div className="participant-header">
           <button className="btn btn-outline back-button" onClick={handleGoHome}>
-            ← Вернуться на главную
+            Вернуться на главную
           </button>
           <div className="participant-header-top">
             <h1>Участие в опросе</h1>
